@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mc_att_control Run() 流程图</title>
+    <style>
+        :root {
+            --bg-color: #1e1e2e;
+            --card-bg: #2d2d44;
+            --text-color: #cdd6f4;
+            --accent-cyan: #89dceb;
+            --accent-pink: #f38ba8;
+            --accent-green: #a6e3a1;
+            --accent-peach: #fab387;
+            --accent-mauve: #cba6f7;
+            --accent-yellow: #f9e2af;
+            --line-color: #6c7086;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--accent-cyan);
+            margin-bottom: 30px;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        .flowchart {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 2;
+        }
+
+        .box {
+            background-color: var(--card-bg);
+            padding: 15px 25px;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-cyan);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            min-width: 180px;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .box:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.4);
+        }
+
+        .box.decision {
+            border-left-color: var(--accent-pink);
+            background-color: #2d2d44;
+            transform: skewX(-10deg);
+        }
+        .box.decision span {
+            display: block;
+            transform: skewX(10deg);
+        }
+
+        .box.action { border-left-color: var(--accent-green); }
+        .box.update { border-left-color: var(--accent-peach); }
+        .box.branch { border-left-color: var(--accent-mauve); }
+        .box.end { border-left-color: var(--accent-yellow); background-color: #3d3d5c; }
+
+        .arrow {
+            color: var(--line-color);
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .vertical-arrow {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--line-color);
+            font-size: 24px;
+        }
+
+        .sub-section {
+            width: 100%;
+            max-width: 1000px;
+            border: 1px dashed var(--line-color);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .sub-section-title {
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: var(--bg-color);
+            padding: 0 10px;
+            color: var(--accent-peach);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .branch-container {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            width: 100%;
+            position: relative;
+        }
+
+        .branch {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            max-width: 350px;
+            border: 1px solid var(--line-color);
+            border-radius: 8px;
+            padding: 15px;
+            background: rgba(45, 45, 68, 0.3);
+        }
+
+        .branch-label {
+            margin-bottom: 15px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .label-yes { background-color: rgba(166, 227, 161, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+        .label-no { background-color: rgba(243, 139, 168, 0.2); color: var(--accent-pink); border: 1px solid var(--accent-pink); }
+
+        .connector {
+            position: absolute;
+            top: 50%;
+            width: 40px;
+            height: 2px;
+            background-color: var(--line-color);
+        }
+
+        /* SVG Connectors */
+        svg {
+            overflow: visible;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        path {
+            fill: none;
+            stroke: var(--line-color);
+            stroke-width: 2;
+            stroke-dasharray: 5, 5;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+        }
+
+        .color-box {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        @media (max-width: 768px) {
+            .branch-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .box {
+                min-width: 150px;
+                padding: 10px 15px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Multicopter Attitude Control - Run() 流程图</h1>
+
+    <div class="legend">
+        <div class="legend-item"><div class="color-box" style="background: var(--accent-cyan)"></div>标准流程</div>
+        <div class="legend-item"><div class="color-box" style="background: var(--accent-pink)"></div>条件判断</div>
+        <div class="legend-item"><div class="color-box" style="background: var(--accent-green)"></div>动作/执行</div>
+        <div class="legend-item"><div class="color-box" style="background: var(--accent-peach)"></div>数据更新</div>
+    </div>
+
+    <div class="container">
+        <!-- Top Level -->
+        <div class="sub-section">
+            <div class="sub-section-title">系统入口 & 状态同步</div>
+            <div class="flowchart">
+                <div class="row">
+                    <div class="box action">Run() 开始</div>
+                    <div class="arrow">→</div>
+                    <div class="box decision"><span>should_exit?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box end">退出清理</div>
+                </div>
+                <div class="vertical-arrow">↓ (No)</div>
+                <div class="row">
+                    <div class="box update">perf_begin<br>(性能监控)</div>
+                    <div class="arrow">→</div>
+                    <div class="box decision"><span>参数更新?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box update">updateParams()<br>parameters_updated()</div>
+                </div>
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box decision"><span>悬停推力更新?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box update">更新 hover_thrust<br>(估算值或默认值)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Loop -->
+        <div class="sub-section">
+            <div class="sub-section-title">姿态主循环 (vehicle_attitude 回调)</div>
+            <div class="flowchart">
+                <div class="row">
+                    <div class="box action">获取 vehicle_attitude</div>
+                    <div class="arrow">→</div>
+                    <div class="box update">计算 dt (限幅 0.2~20ms)</div>
+                    <div class="arrow">→</div>
+                    <div class="box update">同步 Manual Control<br>& Vehicle Control Mode</div>
+                </div>
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box decision"><span>vehicle_status 更新?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box update">判断: 旋翼/VTOL<br>in_transition_mode</div>
+                </div>
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box decision"><span>vehicle_land_detected?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box decision"><span>vehicle_local_pos?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box update">获取 unaided_heading</div>
+                </div>
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box decision"><span>run_att_ctrl?</span><br><small>(姿态控制启用<br>AND<br>悬停/过渡)</small></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Logic Branches -->
+        <div class="sub-section">
+            <div class="sub-section-title">姿态控制核心逻辑</div>
+            <div class="flowchart">
+                <div class="branch-container">
+                    <!-- Manual Branch -->
+                    <div class="branch">
+                        <div class="branch-label label-yes">手动/稳定模式</div>
+                        <div class="box action">generate_attitude_setpoint()<br><small>摇杆输入 -> 姿态目标</small></div>
+                        <div class="vertical-arrow">↓</div>
+                        <div class="box update">更新 yaw 设定点<br>(_yaw_setpoint_stabilized)</div>
+                    </div>
+
+                    <!-- Divider -->
+                    <div style="align-self: center; font-size: 24px; color: var(--accent-pink);">X</div>
+
+                    <!-- Auto Branch -->
+                    <div class="branch">
+                        <div class="branch-label label-no">其他模式 (自动)</div>
+                        <div class="box update">重置摇杆滤波器<br>(Roll/Pitch/Yaw)</div>
+                        <div class="vertical-arrow">↓</div>
+                        <div class="box update">重置 yaw 设定点<br>(_yaw_setpoint_stabilized)</div>
+                    </div>
+                </div>
+
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box decision"><span>外部姿态设定点更新?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box action">setAttitudeSetpoint()<br><small>设置期望姿态 q_d</small></div>
+                </div>
+
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box decision"><span>航向重置?<br>(quat_reset_counter)</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box action">同步 yaw 设定点<br>adaptAttitudeSetpoint()</div>
+                </div>
+
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box action" style="border-color: var(--accent-yellow);">_attitude_control.update()<br><small>计算期望角速率 rates_sp</small></div>
+                    <div class="arrow">→</div>
+                    <div class="box decision"><span>Auto-tune 运行?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box update">叠加 rate_sp 增量</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Output -->
+        <div class="sub-section">
+            <div class="sub-section-title">输出与后处理</div>
+            <div class="flowchart">
+                <div class="row">
+                    <div class="box action">发布 vehicle_rates_setpoint<br>(Roll, Pitch, Yaw, Thrust)</div>
+                </div>
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box decision"><span>着陆状态?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box update">调整推力下限<br>(0 或 参数值)</div>
+                </div>
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box decision"><span>电机就绪<br>_spooled_up?</span></div>
+                    <div class="arrow">→</div>
+                    <div class="box update">调整推力上限<br>(0 或 1.0)</div>
+                </div>
+                <div class="vertical-arrow">↓</div>
+                <div class="row">
+                    <div class="box action">更新 hover_thrust_slew_rate</div>
+                    <div class="arrow">→</div>
+                    <div class="box end">perf_end<br>循环结束</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

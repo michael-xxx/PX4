@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWM Signal Visualization</title>
+    <script src="https://esm.sh/p5@1.9.0"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: #12121a;
+            --accent-cyan: #00f5ff;
+            --accent-pink: #ff2d95;
+            --accent-yellow: #ffd700;
+            --accent-green: #00ff88;
+            --text-primary: #ffffff;
+            --text-secondary: #8a8a9a;
+            --grid-color: rgba(255, 255, 255, 0.08);
+            --wave-color: #00f5ff;
+            --wave-glow: rgba(0, 245, 255, 0.4);
+        }
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+        
+        .canvas-wrapper {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 12px;
+        }
+        
+        .params-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .param-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .param-card:hover {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 30px rgba(0, 245, 255, 0.1);
+        }
+        
+        .param-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .param-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+        
+        .param-unit {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-left: 5px;
+        }
+        
+        .param-desc {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+        
+        .signal-type {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 15px;
+        }
+        
+        .signal-high {
+            background: rgba(0, 255, 136, 0.2);
+            color: var(--accent-green);
+        }
+        
+        .signal-low {
+            background: rgba(138, 138, 154, 0.2);
+            color: var(--text-secondary);
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 30px;
+        }
+        
+        .info-item {
+            background: rgba(0, 245, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        
+        .info-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--accent-yellow);
+        }
+        
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .legend-color {
+            width: 30px;
+            height: 4px;
+            border-radius: 2px;
+        }
+        
+        .legend-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        .motor-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .motor-card {
+            background: linear-gradient(135deg, rgba(0, 245, 255, 0.1), rgba(255, 45, 149, 0.05));
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid rgba(0, 245, 255, 0.2);
+        }
+        
+        .motor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .motor-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .motor-direction {
+            font-size: 0.8rem;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        
+        .cw {
+            background: rgba(255, 45, 149, 0.2);
+            color: var(--accent-pink);
+        }
+        
+        .ccw {
+            background: rgba(0, 255, 136, 0.2);
+            color: var(--accent-green);
+        }
+        
+        .motor-pwm {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+        
+        .motor-speed {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+        
+        .quad-layout {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 30px;
+            margin-top: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .quad-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .quad-visual {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin: 30px auto;
+        }
+        
+        .quad-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            box-shadow: 0 0 20px var(--wave-glow);
+        }
+        
+        .quad-motor {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        
+        .quad-motor.m1 {
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 45, 149, 0.3);
+            border: 2px solid var(--accent-pink);
+            color: var(--accent-pink);
+        }
+        
+        .quad-motor.m2 {
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 255, 136, 0.3);
+            border: 2px solid var(--accent-green);
+            color: var(--accent-green);
+        }
+        
+        .quad-motor.m3 {
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 255, 136, 0.3);
+            border: 2px solid var(--accent-green);
+            color: var(--accent-green);
+        }
+        
+        .quad-motor.m4 {
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 45, 149, 0.3);
+            border: 2px solid var(--accent-pink);
+            color: var(--accent-pink);
+        }
+        
+        .quad-axis {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .quad-axis.x {
+            transform: translate(60px, -50%);
+        }
+        
+        .quad-axis.y {
+            transform: translate(-50%, 60px);
+        }
+        
+        .arrow {
+            position: absolute;
+            font-size: 1.2rem;
+            color: var(--accent-yellow);
+        }
+        
+        .arrow.up { top: 75px; left: 50%; transform: translateX(-50%); }
+        .arrow.down { bottom: 75px; left: 50%; transform: translateX(-50%); }
+        .arrow.left { left: 75px; top: 50%; transform: translateY(-50%); }
+        .arrow.right { right: 75px; top: 50%; transform: translateY(-50%); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PWM 信号示例</h1>
+            <p class="subtitle">四旋翼 Drone PWM 输出信号可视化</p>
+        </header>
+        
+        <div class="canvas-wrapper">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1.2rem;">Motor 1 (右前 CW)</h3>
+                <div>
+                    <span class="signal-type signal-high">HIGH</span>
+                    <span class="signal-type signal-low">LOW</span>
+                </div>
+            </div>
+            <div id="canvas-container"></div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #00f5ff;"></div>
+                    <span class="legend-text">高电平 (脉宽)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #333;"></div>
+                    <span class="legend-text">低电平</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff2d95;"></div>
+                    <span class="legend-text">脉宽标记</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffd700;"></div>
+                    <span class="legend-text">周期标记</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="params-panel">
+            <div class="param-card">
+                <div class="param-label">脉宽 (Pulse Width)</div>
+                <div class="param-value"><span id="pwm-value">1788</span><span class="param-unit">μs</span></div>
+                <div class="param-desc">高电平持续时间，决定电机转速</div>
+            </div>
+            <div class="param-card">
+                <div class="param-label">周期 (Period)</div>
+                <div class="param-value"><span id="period-value">20000</span><span class="param-unit">μs</span></div>
+                <div class="param-desc">PWM 信号重复周期 = 20ms (50Hz)</div>
+            </div>
+            <div class="param-card">
+                <div class="param-label">占空比 (Duty Cycle)</div>
+                <div class="param-value"><span id="duty-value">8.94</span><span class="param-unit">%</span></div>
+                <div class="param-desc">脉宽 / 周期，高占空比 = 高转速</div>
+            </div>
+            <div class="param-card">
+                <div class="param-label">转速占比</div>
+                <div class="param-value"><span id="speed-value">78.8</span><span class="param-unit">%</span></div>
+                <div class="param-desc">相对于最大转速的百分比</div>
+            </div>
+        </div>
+        
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">最小脉宽</div>
+                <div class="info-value">1000 μs</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">最大脉宽</div>
+                <div class="info-value">2000 μs</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">怠速脉宽</div>
+                <div class="info-value">1000 μs</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">满速脉宽</div>
+                <div class="info-value">2000 μs</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">信号频率</div>
+                <div class="info-value">50 Hz</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">信号周期</div>
+                <div class="info-value">20 ms</div>
+            </div>
+        </div>
+        
+        <div class="quad-layout">
+            <h3 class="quad-title">四旋翼 Quad-X 布局</h3>
+            <div class="quad-visual">
+                <div class="quad-center">FC</div>
+                <div class="quad-motor m1">M1</div>
+                <div class="quad-motor m2">M2</div>
+                <div class="quad-motor m3">M3</div>
+                <div class="quad-motor m4">M4</div>
+                <div class="quad-axis x">+X (机头)</div>
+                <div class="quad-axis y">+Y</div>
+                <span class="arrow up">↑</span>
+                <span class="arrow down">↓</span>
+                <span class="arrow left">←</span>
+                <span class="arrow right">→</span>
+            </div>
+            
+            <div class="motor-info">
+                <div class="motor-card">
+                    <div class="motor-header">
+                        <span class="motor-name">Motor 1 (右前)</span>
+                        <span class="motor-direction cw">CW</span>
+                    </div>
+                    <div class="motor-pwm" id="m1-pwm">1788 μs</div>
+                    <div class="motor-speed">占空比 8.94%, 转速 78.8%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="m1-bar" style="width: 78.8%; background: linear-gradient(90deg, #ff2d95, #ff6b6b);"></div>
+                    </div>
+                </div>
+                <div class="motor-card">
+                    <div class="motor-header">
+                        <span class="motor-name">Motor 2 (左后)</span>
+                        <span class="motor-direction ccw">CCW</span>
+                    </div>
+                    <div class="motor-pwm" id="m2-pwm">1788 μs</div>
+                    <div class="motor-speed">占空比 8.94%, 转速 78.8%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="m2-bar" style="width: 78.8%; background: linear-gradient(90deg, #00ff88, #00f5ff);"></div>
+                    </div>
+                </div>
+                <div class="motor-card">
+                    <div class="motor-header">
+                        <span class="motor-name">Motor 3 (左前)</span>
+                        <span class="motor-direction ccw">CCW</span>
+                    </div>
+                    <div class="motor-pwm" id="m3-pwm">1713 μs</div>
+                    <div class="motor-speed">占空比 8.57%, 转速 71.3%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="m3-bar" style="width: 71.3%; background: linear-gradient(90deg, #00ff88, #00f5ff);"></div>
+                    </div>
+                </div>
+                <div class="motor-card">
+                    <div class="motor-header">
+                        <span class="motor-name">Motor 4 (右后)</span>
+                        <span class="motor-direction cw">CW</span>
+                    </div>
+                    <div class="motor-pwm" id="m4-pwm">1713 μs</div>
+                    <div class="motor-speed">占空比 8.57%, 转速 71.3%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="m4-bar" style="width: 71.3%; background: linear-gradient(90deg, #ff2d95, #ff6b6b);"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // PWM values for quadcopter with roll to the right
+        const pwmValues = {
+            motor1: 1788,  // Right front CW
+            motor2: 1788,  // Left back CCW
+            motor3: 1713,  // Left front CCW
+            motor4: 1713   // Right back CW
+        };
+        
+        const PWM_MIN = 1000;
+        const PWM_MAX = 2000;
+        const PERIOD = 20000; // 20ms = 50Hz
+        
+        // Create p5.js canvas
+        new p5((p) => {
+            let canvasWidth, canvasHeight;
+            
+            p.setup = function() {
+                const container = document.getElementById('canvas-container');
+                canvasWidth = Math.min(container.offsetWidth, 1000);
+                canvasHeight = 300;
+                p.createCanvas(canvasWidth, canvasHeight);
+                p.frameRate(30);
+            };
+            
+            p.windowResized = function() {
+                const container = document.getElementById('canvas-container');
+                canvasWidth = Math.min(container.offsetWidth, 1000);
+                p.resizeCanvas(canvasWidth, canvasHeight);
+            };
+            
+            p.draw = function() {
+                p.background(15, 15, 20);
+                
+                const margin = 60;
+                const signalY = 100;
+                const signalHeight = 120;
+                const timeScale = (canvasWidth - margin * 2) / PERIOD;
+                
+                // Draw grid
+                drawGrid(p, margin, signalY, signalHeight, timeScale);
+                
+                // Draw PWM signal
+                drawPWMSignal(p, margin, signalY, signalHeight, timeScale);
+                
+                // Draw annotations
+                drawAnnotations(p, margin, signalY, signalHeight);
+                
+                // Animate cursor
+                const cycle = (p.frameCount * 0.05) % 1;
+                drawCursor(p, margin, signalY, signalHeight, timeScale, cycle);
+            };
+            
+            function drawGrid(p, margin, signalY, signalHeight, timeScale) {
+                p.stroke(255, 255, 255, 20);
+                p.strokeWeight(1);
+                
+                // Horizontal lines
+                for (let i = 0; i <= 4; i++) {
+                    const y = signalY + (signalHeight / 4) * i;
+                    p.line(margin, y, canvasWidth - margin, y);
+                }
+                
+                // Vertical lines (every 2ms)
+                for (let i = 0; i <= 10; i++) {
+                    const x = margin + (PERIOD / 10) * i * timeScale;
+                    p.line(x, signalY - 10, x, signalY + signalHeight + 10);
+                }
+                
+                // Labels
+                p.fill(138, 138, 154);
+                p.noStroke();
+                p.textAlign(p.CENTER);
+                p.textSize(10);
+                p.textFont('JetBrains Mono');
+                
+                // Time labels
+                for (let i = 0; i <= 10; i += 2) {
+                    const x = margin + (PERIOD / 10) * i * timeScale;
+                    p.text((i * 2) + 'ms', x, signalY + signalHeight + 25);
+                }
+                
+                // Voltage labels
+                p.textAlign(p.RIGHT);
+                p.fill(0, 245, 255);
+                p.text('3.3V', margin - 10, signalY + 15);
+                p.fill(138, 138, 154);
+                p.text('0V', margin - 10, signalY + signalHeight + 5);
+                
+                // Title
+                p.fill(255);
+                p.textAlign(p.LEFT);
+                p.textSize(12);
+                p.text('时间 (Time)', margin + (canvasWidth - margin * 2) / 2, signalY + signalHeight + 45);
+                
+                p.push();
+                p.translate(20, signalY + signalHeight / 2);
+                p.rotate(-p.HALF_PI);
+                p.textAlign(p.CENTER);
+                p.fill(255);
+                p.text('电压 (Voltage)', 0, 0);
+                p.pop();
+            }
+            
+            function drawPWMSignal(p, margin, signalY, signalHeight, timeScale) {
+                const pulseWidth = pwmValues.motor1;
+                const pulseX = margin + pulseWidth * timeScale;
+                const lowY = signalY + signalHeight;
+                const highY = signalY;
+                const endX = margin + PERIOD * timeScale;
+                
+                // Glow effect
+                p.drawingContext.shadowBlur = 20;
+                p.drawingContext.shadowColor = 'rgba(0, 245, 255, 0.5)';
+                
+                // Signal line
+                p.stroke(0, 245, 255);
+                p.strokeWeight(3);
+                p.noFill();
+                
+                // Rising edge
+                p.line(margin, lowY, margin, highY);
+                // High pulse
+                p.line(margin, highY, pulseX, highY);
+                // Falling edge
+                p.line(pulseX, highY, pulseX, lowY);
+                // Low
+                p.line(pulseX, lowY, endX, lowY);
+                // Return to start
+                p.line(endX, lowY, endX, lowY - 0);
+                
+                // Reset shadow
+                p.drawingContext.shadowBlur = 0;
+                
+                // Pulse width annotation
+                p.stroke(255, 45, 149);
+                p.strokeWeight(1);
+                p.drawingContext.setLineDash([5, 5]);
+                p.line(pulseX, highY - 20, pulseX, lowY + 20);
+                p.drawingContext.setLineDash([]);
+                
+                // Arrow markers at pulse edges
+                p.fill(255, 45, 149);
+                p.noStroke();
+                p.triangle(pulseX, highY - 8, pulseX - 5, highY - 3, pulseX + 5, highY - 3);
+                
+                // Period annotation
+                p.stroke(255, 215, 0);
+                p.strokeWeight(1);
+                p.drawingContext.setLineDash([5, 5]);
+                p.line(margin, lowY + 35, endX, lowY + 35);
+                p.drawingContext.setLineDash([]);
+                
+                // Period arrows
+                p.fill(255, 215, 0);
+                p.noStroke();
+                // Left arrow
+                p.triangle(margin, lowY + 30, margin + 5, lowY + 35, margin, lowY + 40);
+                // Right arrow
+                p.triangle(endX, lowY + 30, endX - 5, lowY + 35, endX, lowY + 40);
+                
+                // Period text
+                p.fill(255, 215, 0);
+                p.textAlign(p.CENTER);
+                p.textSize(11);
+                p.text('20ms (50Hz)', (margin + endX) / 2, lowY + 55);
+            }
+            
+            function drawAnnotations(p, margin, signalY, signalHeight) {
+                const pulseWidth = pwmValues.motor1;
+                const pulseX = margin + pulseWidth * timeScale;
+                const highY = signalY;
+                
+                // Pulse width text
+                p.fill(255, 45, 149);
+                p.noStroke();
+                p.textAlign(p.CENTER);
+                p.textSize(14);
+                p.textFont('JetBrains Mono');
+                p.text(pulseWidth + ' μs', pulseX, highY - 25);
+                
+                // Label box
+                p.fill(255, 45, 149, 30);
+                p.stroke(255, 45, 149);
+                p.strokeWeight(1);
+                p.rectMode(p.CENTER);
+                p.rect(pulseX, highY - 45, 120, 22, 5);
+                
+                p.noStroke();
+                p.fill(255, 45, 149);
+                p.text('脉宽 (Pulse Width)', pulseX, highY - 38);
+                
+                // High level indicator
+                p.fill(0, 255, 136);
+                p.textAlign(p.RIGHT);
+                p.textSize(10);
+                p.text('HIGH (3.3V)', margin - 5, highY + 5);
+                
+                // Low level indicator
+                p.fill(138, 138, 154);
+                p.text('LOW (0V)', margin - 5, signalY + signalHeight + 5);
+            }
+            
+            function drawCursor(p, margin, signalY, signalHeight, timeScale, cycle) {
+                const cursorX = margin + cycle * PERIOD * timeScale;
+                
+                // Wrap cursor position
+                if (cursorX > canvasWidth - margin) {
+                    return; // Skip drawing cursor during wrap
+                }
+                
+                // Cursor line
+                p.stroke(255, 255, 255, 100);
+                p.strokeWeight(1);
+                p.drawingContext.setLineDash([3, 3]);
+                p.line(cursorX, signalY - 10, cursorX, signalY + signalHeight + 10);
+                p.drawingContext.setLineDash([]);
+                
+                // Cursor dot
+                const pulseWidth = pwmValues.motor1;
+                const pulseX = margin + pulseWidth * timeScale;
+                let cursorY;
+                
+                if (cycle * PERIOD < pulseWidth) {
+                    cursorY = signalY; // High
+                } else {
+                    cursorY = signalY + signalHeight; // Low
+                }
+                
+                p.fill(255);
+                p.noStroke();
+                p.circle(cursorX, cursorY, 8);
+                
+                // Time readout
+                const currentTime = (cycle * PERIOD).toFixed(0);
+                p.fill(255);
+                p.textAlign(p.CENTER);
+                p.textSize(10);
+                p.text(currentTime + ' μs', cursorX, signalY + signalHeight + 70);
+            }
+            
+            let timeScale; // Make it accessible in nested functions
+        }, 'canvas-container');
+    </script>
+</body>
+</html>
